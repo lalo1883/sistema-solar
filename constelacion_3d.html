@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constelación Reforma 2027 · Sistema solar 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#070D18; --bg2:#0E1830; --panel:#121D33; --line:#22314F;
+  --text:#E8EEF9; --muted:#8FA0BC; --faint:#5A6B88;
+  --catA:#F2B33D; --catB:#41C6CE; --catC:#F26430; --catD:#5BD6A0; --catE:#9B7BF5; --catF:#ED5D8B;
+  --ok:#5BD6A0; --warn:#F2B33D; --off:#5A6B88;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:rgba(7,13,24,.85);backdrop-filter:blur(8px);position:relative;z-index:30}
+.brand h1{font-family:'Space Grotesk';font-size:18px;font-weight:700}
+.brand span{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.viewtoggle{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.viewtoggle button{padding:7px 15px;font-size:12.5px;font-weight:600;color:var(--muted);transition:.15s}
+.viewtoggle button.active{background:var(--panel);color:var(--text)}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 12px;min-width:200px}
+.search input{background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%}
+.search input::placeholder{color:var(--faint)}
+#pauseBtn{border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12px;color:var(--muted)}
+#pauseBtn:hover{color:var(--text)}
+
+.filters{display:flex;align-items:center;gap:8px;padding:9px 20px;border-bottom:1px solid var(--line);overflow-x:auto;position:relative;z-index:29;background:rgba(7,13,24,.7)}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--line);color:var(--muted);transition:.15s;white-space:nowrap}
+.chip:hover{color:var(--text)}
+.chip.on{color:#070D18;border-color:transparent}
+.chip[data-cat="A"].on{background:var(--catA)} .chip[data-cat="B"].on{background:var(--catB)}
+.chip[data-cat="C"].on{background:var(--catC)} .chip[data-cat="D"].on{background:var(--catD)}
+.chip[data-cat="E"].on{background:var(--catE)} .chip[data-cat="F"].on{background:var(--catF)}
+.chip[data-f].on{background:var(--text)}
+.fdiv{width:1px;height:18px;background:var(--line);flex:0 0 auto}
+.count{margin-left:auto;font-size:11px;color:var(--faint);flex:0 0 auto;font-family:'IBM Plex Mono'}
+
+#stage{position:relative;height:calc(100vh - 103px)}
+#c3d{position:absolute;inset:0;display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.plabel{position:absolute;transform:translate(-50%,0);font-size:11px;font-weight:600;color:var(--text);text-shadow:0 2px 8px #000,0 0 12px rgba(0,0,0,.9);text-align:center;max-width:130px;line-height:1.2;pointer-events:auto;cursor:pointer;transition:opacity .2s;white-space:nowrap}
+.plabel small{display:block;font-size:9px;color:var(--muted);font-weight:500}
+.plabel.hide{opacity:0;pointer-events:none}
+#sunlabel{position:absolute;transform:translate(-50%,-50%);text-align:center;pointer-events:none;text-shadow:0 2px 10px rgba(0,0,0,.8)}
+#sunlabel .t{font-family:'Space Grotesk';font-weight:700;font-size:13px;color:#FFE3B0;letter-spacing:.06em}
+#sunlabel .d{font-family:'IBM Plex Mono';font-size:20px;font-weight:600;color:#FFF3D6;margin-top:2px}
+#sunlabel .s{font-size:9px;font-weight:600;color:#FFD79A;letter-spacing:.08em;text-transform:uppercase;margin-top:1px}
+
+#legend{position:absolute;left:16px;bottom:14px;background:rgba(14,24,48,.9);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:11px;color:var(--muted);z-index:20;backdrop-filter:blur(6px)}
+#legend h4{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+#legend .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+#legend .mk{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+#hint{position:absolute;right:16px;bottom:14px;font-size:11px;color:var(--faint);z-index:20;font-family:'IBM Plex Mono';text-align:right;line-height:1.6}
+
+#board{display:none;height:100%;overflow-y:auto;padding:26px 30px 60px;position:relative;z-index:5;background:var(--bg)}
+.catsec{margin-bottom:34px}
+.catsec h2{font-family:'Space Grotesk';font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.catsec .catdesc{font-size:12px;color:var(--muted);margin-bottom:14px;max-width:760px}
+.catdot{width:11px;height:11px;border-radius:50%}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px 16px;cursor:pointer;transition:.15s;position:relative;border-top:3px solid var(--cc)}
+.card:hover{transform:translateY(-3px);border-color:var(--cc);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.card h3{font-family:'Space Grotesk';font-size:14px;font-weight:600;line-height:1.3;padding-right:22px}
+.card p{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+.card .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:12px;background:rgba(143,160,188,.12);color:var(--muted)}
+.tag.hz{font-family:'IBM Plex Mono'}
+.card .peso{display:flex;gap:3px;position:absolute;top:15px;right:14px}
+.card .peso i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.card .peso i.f{background:var(--cc)}
+.card .star{position:absolute;top:-9px;right:12px;font-size:14px}
+.card[data-status="interesa"]{outline:2px solid var(--warn);outline-offset:-1px}
+.card[data-status="prioridad"]{outline:2px solid var(--ok);outline-offset:-1px}
+.card[data-status="descartado"]{opacity:.4}
+.card.hidden{display:none}
+
+#drawer{position:fixed;top:0;right:0;width:440px;max-width:94vw;height:100vh;background:var(--bg2);border-left:1px solid var(--line);z-index:60;transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.5)}
+#drawer.open{transform:translateX(0)}
+#drawer .dhead{padding:20px 24px 16px;border-bottom:1px solid var(--line);position:relative}
+#drawer .catchip{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 11px;border-radius:14px;color:#070D18}
+#drawer h2{font-family:'Space Grotesk';font-size:21px;font-weight:700;line-height:1.25;margin-top:10px;padding-right:30px}
+#dclose{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);color:var(--muted);font-size:16px;display:flex;align-items:center;justify-content:center}
+#dclose:hover{color:var(--text);border-color:var(--muted)}
+#drawer .dbody{flex:1;overflow-y:auto;padding:20px 24px 30px}
+.dsec{margin-bottom:20px}
+.dsec h4{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+.dsec p{font-size:13.5px;line-height:1.6;color:var(--text)}
+.dsec .apunta{color:var(--muted)}
+.kvrow{display:flex;gap:10px;flex-wrap:wrap}
+.kv{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:12px}
+.kv b{display:block;font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:3px;font-weight:500}
+.ref{background:#0B1424;border:1px solid var(--line);border-left:3px solid var(--cc,#8FA0BC);border-radius:9px;padding:11px 14px;margin-bottom:9px}
+.ref .src{font-family:'IBM Plex Mono';font-size:10.5px;font-weight:600;color:var(--cc,#8FA0BC)}
+.ref .q{font-size:12.5px;color:var(--muted);font-style:italic;margin-top:5px;line-height:1.5}
+.pesobar{display:flex;align-items:center;gap:8px}
+.pesobar .dots{display:flex;gap:4px}
+.pesobar .dots i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.pesobar .dots i.f{background:var(--cc,#8FA0BC)}
+.pesobar span{font-size:12px;color:var(--muted)}
+.statusbtns{display:flex;gap:8px;margin-top:4px}
+.sbtn{flex:1;padding:9px 6px;border-radius:9px;border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted);transition:.15s}
+.sbtn:hover{color:var(--text)}
+.sbtn.on[data-s="interesa"]{background:rgba(242,179,61,.15);border-color:var(--warn);color:var(--warn)}
+.sbtn.on[data-s="prioridad"]{background:rgba(91,214,160,.15);border-color:var(--ok);color:var(--ok)}
+.sbtn.on[data-s="descartado"]{background:rgba(90,107,136,.15);border-color:var(--off);color:var(--muted)}
+#overlay{position:fixed;inset:0;background:rgba(4,8,15,.45);z-index:55;opacity:0;pointer-events:none;transition:.25s}
+#overlay.open{opacity:1;pointer-events:auto}
+
+@media (max-width:820px){
+  header{flex-wrap:wrap;gap:10px}
+  .search{min-width:140px}
+  #legend,#hint{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Constelación Reforma 2027</h1>
+    <span>Sistema solar 3D · 24 proyectos anclados a los documentos INDEX y RRHH</span>
+  </div>
+  <div class="viewtoggle">
+    <button id="btnOrbit" class="active">🪐 Sistema 3D</button>
+    <button id="btnBoard">▦ Tablero</button>
+  </div>
+  <div class="search">🔍<input id="q" type="text" placeholder="Buscar proyecto…"></div>
+  <button id="pauseBtn">⏸ Pausar</button>
+</header>
+
+<div class="filters" id="filterBar">
+  <button class="chip on" data-cat="A">A · Cumplimiento</button>
+  <button class="chip on" data-cat="B">B · Turnos</button>
+  <button class="chip on" data-cat="C">C · Piso / IoT</button>
+  <button class="chip on" data-cat="D">D · Personas</button>
+  <button class="chip on" data-cat="E">E · Clúster</button>
+  <button class="chip on" data-cat="F">F · Física</button>
+  <div class="fdiv"></div>
+  <button class="chip" data-f="top5">⭐ Top 5 para papá</button>
+  <button class="chip" data-f="peso3">⬤ Cita textual</button>
+  <button class="chip" data-f="marcados">Marcados</button>
+  <span class="count" id="count"></span>
+</div>
+
+<div id="stage">
+  <canvas id="c3d"></canvas>
+  <div id="labels"></div>
+  <div id="board"></div>
+  <div id="legend">
+    <h4>Cómo leer el sistema</h4>
+    <div class="row">🪐 Planeta grande — cita textual en los docs</div>
+    <div class="row">🌑 Planeta chico — referencia directa</div>
+    <div class="row">☄️ Asteroide — extensión lógica (aún sin ancla)</div>
+    <div class="row">💍 Anillo dorado — Top 5 para la primera presentación</div>
+    <div class="row" style="margin-top:6px"><span class="mk" style="background:var(--warn)"></span>Interesa <span class="mk" style="background:var(--ok)"></span>Prioridad <span class="mk" style="background:var(--off)"></span>Descartado</div>
+  </div>
+  <div id="hint">arrastra · girar<br>rueda / pellizco · zoom<br>clic en planeta · detalle</div>
+</div>
+
+<div id="overlay"></div>
+<aside id="drawer">
+  <div class="dhead">
+    <span class="catchip" id="dcat"></span>
+    <h2 id="dname"></h2>
+    <button id="dclose">✕</button>
+  </div>
+  <div class="dbody">
+    <div class="dsec"><h4>Qué es</h4><p id="ddesc"></p></div>
+    <div class="dsec"><h4>A qué apunta</h4><p class="apunta" id="dapunta"></p></div>
+    <div class="dsec"><div class="kvrow">
+      <div class="kv"><b>Comprador</b><span id="dcomprador"></span></div>
+      <div class="kv"><b>Horizonte</b><span id="dhz"></span></div>
+    </div></div>
+    <div class="dsec"><h4>Peso documental</h4><div class="pesobar" id="dpeso"></div></div>
+    <div class="dsec"><h4>Anclaje en los documentos</h4><div id="drefs"></div></div>
+    <div class="dsec"><h4>Estado en el pizarrón</h4>
+      <div class="statusbtns">
+        <button class="sbtn" data-s="interesa">☆ Interesa</button>
+        <button class="sbtn" data-s="prioridad">✓ Prioridad</button>
+        <button class="sbtn" data-s="descartado">✕ Descartar</button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script>
+/* ================= DATOS ================= */
+const CATS = {
+  A:{name:"Cumplimiento legal", color:"#F2B33D", desc:"Se venden solos: la ley obliga y tiene fecha. Puerta de entrada del portafolio.", orbit:0},
+  B:{name:"Decisión y planeación de turnos", color:"#41C6CE", desc:"Herramientas para decidir y operar el nuevo esquema de jornada.", orbit:1},
+  C:{name:"Productividad de piso · IoT y datos", color:"#F26430", desc:"Recuperar la capacidad ya pagada: tiempos muertos, paros, variabilidad, scrap.", orbit:2},
+  D:{name:"Personas y talento", color:"#5BD6A0", desc:"El canal natural de RRHH: polivalencia, ausentismo, comunicación del cambio.", orbit:3},
+  E:{name:"Nivel clúster", color:"#9B7BF5", desc:"No se venden a una planta — se venden a INDEX o al parque industrial.", orbit:4},
+  F:{name:"Dimensión física · diseño", color:"#ED5D8B", desc:"El frente del diseñador industrial: ergonomía y hardware con acabado de producto.", orbit:5}
+};
+
+const P = [
+{id:1,cat:"A",top5:true,peso:3,hz:"2026–2027",comprador:"RRHH / Legal",nombre:"RegistroMX · Registro electrónico de jornada",corto:"RegistroMX",
+ desc:"Sistema de checado de entrada y salida conforme a la nueva LFT, con reportes en el formato que la autoridad exigirá.",
+ apunta:"El único producto del portafolio cuya compra es obligatoria por ley y con fecha: 1 de enero de 2027. No se vende — se cobra. Puerta de entrada a todo lo demás.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 12",q:"Registro electrónico de jornada laboral: registrar hora de entrada y salida, disponible para la autoridad. Opera a partir del 1 de enero de 2027."},
+       {doc:"Deck RRHH",lam:"Lámina 3",q:"Obligatoriedad de contar con un registro electrónico de la jornada laboral de cada trabajador que será proporcionado a la autoridad."}]},
+{id:2,cat:"A",top5:false,peso:3,hz:"2026",comprador:"RRHH / Finanzas",nombre:"Auditoría de nómina y checador pre-reforma",corto:"Auditoría nómina",
+ desc:"Servicio: verificar que las reglas de cálculo (pagos 100%/200%, tope de 12 h diarias, nuevos límites) estén bien parametrizadas antes del arranque, con validación en paralelo el primer mes.",
+ apunta:"Ingreso rápido sin construir producto, y acceso privilegiado a los sistemas del cliente: inteligencia de mercado para todo el portafolio.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 19",q:"Auditar parametrización ANTES del go-live; validar primer mes en paralelo."},
+       {doc:"Deck RRHH",lam:"Lámina 11",q:"Pago del 100% adicional para horas extra ordinarias; si excede el límite semanal, 200%. Tope absoluto: 12 h por día."}]},
+{id:3,cat:"A",top5:true,peso:3,hz:"2026–2027",comprador:"Dirección / RRHH",nombre:"Control de hora extra estructural",corto:"Hora extra",
+ desc:"Workflow de autorización por causa y responsable, indicadores de horas extra por turno, línea y razón, y plan de reducción mensual con dueño nombrado.",
+ apunta:"Instrumenta directamente el riesgo que el reporte INDEX llama central. Hoy vive en Excel o no existe.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 10",q:"La hora extra estructural se vuelve un riesgo central: lo que fue un amortiguador, ahora será un costo latente."},
+       {doc:"Reporte INDEX",lam:"Lámina 22",q:"Autorización por causa y dueño, no por monto agregado. Indicador de horas extra por turno, línea y razón."}]},
+{id:4,cat:"A",top5:false,peso:1,hz:"2026–2027",comprador:"RRHH",nombre:"Cumplimiento NOM-035 digital",corto:"NOM-035",
+ desc:"Plataforma para las encuestas de riesgo psicosocial obligatorias por norma, con reportes y planes de acción con seguimiento.",
+ apunta:"Otra obligación legal que hoy se resuelve en papel y Excel. Demuestra que el equipo entiende el mundo completo de RRHH, no solo operaciones.",
+ refs:[{doc:"Fuera de los decks",lam:"Norma vigente STPS",q:"No aparece en los documentos: es extensión lógica del frente de cumplimiento que RRHH ya administra."}]},
+{id:5,cat:"B",top5:false,peso:3,hz:"2026",comprador:"Dirección de planta",nombre:"Simulador de modelos de turno",corto:"Simulador turnos",
+ desc:"Modela los cinco esquemas del taller (5×9.2, 6 días, 5×8+corto, 3×12, 42 h) con los datos reales de la planta: headcount, líneas, costo de hora extra, transporte.",
+ apunta:"Gancho de venta consultiva para las 20 empresas que siguen evaluando impacto sin herramienta para decidir. De ahí se escala al software de operación.",
+ refs:[{doc:"Reporte INDEX",lam:"Láminas 15–17",q:"Cinco modelos compitieron en el taller; cada uno resuelve una parte del problema y abre otra."},
+       {doc:"Reporte INDEX",lam:"Lámina 11",q:"39 de 64 empresas ya planifican cambios, pero 20 siguen evaluando impacto: la preparación aún es desigual."}]},
+{id:6,cat:"B",top5:false,peso:2,hz:"2027",comprador:"RRHH / Operaciones",nombre:"Generador de rol de turnos",corto:"Rol de turnos",
+ desc:"El simulador evalúa modelos; este genera los horarios: asignación de personas a turnos respetando traslapes, descansos, polivalencia y topes legales.",
+ apunta:"Convierte la decisión del modelo en operación diaria. Los traslapes de turno son riesgo abierto incluso del modelo dominante.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 19",q:"Traslapes entre turnos: pérdida de minutos productivos; rediseñar microsecuencia del cambio de turno y pilotar antes de generalizar."}]},
+{id:7,cat:"B",top5:false,peso:2,hz:"2026",comprador:"Dirección / Finanzas",nombre:"Calculadora de impacto financiero",corto:"Calculadora $",
+ desc:"Herramienta ligera: con la nómina y horas extra actuales, calcula cuánto costará cada peldaño 2027–2030 si no cambia nada.",
+ apunta:"Nadie ha traducido la reforma a pesos por planta. Más que producto es el lead magnet que abre todas las demás conversaciones.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 6",q:"La reducción total equivale a 16.7% menos tiempo ordinario disponible."},
+       {doc:"Deck RRHH",lam:"Lámina 11",q:"Esquema gradual de horas extra: de 9 (2026–2027) a 12 horas semanales (2030), con pagos de 100% y 200% adicional."}]},
+{id:8,cat:"C",top5:false,peso:3,hz:"2027",comprador:"Operaciones",nombre:"Tablero UPH / OEE por turno",corto:"Tablero UPH",
+ desc:"Sensores de conteo en línea más tablero en tiempo real: productividad por hora efectiva (UPH), comparable entre turnos bajo métricas equivalentes.",
+ apunta:"La única fuente de verdad que el reporte exige, con el indicador exacto que recomienda la dirección de RRHH.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 23",q:"Una sola fuente de verdad, no múltiples Excel paralelos. Tableros que llegan al supervisor en tiempo del turno."},
+       {doc:"Deck RRHH",lam:"Lámina 18",q:"Medir productividad por hora efectiva y no por turno. Nuevo indicador: UPH (units per hour)."}]},
+{id:9,cat:"C",top5:false,peso:3,hz:"2027",comprador:"Operaciones",nombre:"Andon digital · captura de paros",corto:"Andon digital",
+ desc:"Botonera o tablet en estación para registrar paros con su causa en el momento, sustituyendo el papel. Alimenta el tablero UPH/OEE.",
+ apunta:"Digitaliza los tiempos muertos que el diagnóstico señala como la primera fuente de capacidad ya pagada y mal usada.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 20",q:"Reportes digitales que sustituyen captura manual y reducen latencia."},
+       {doc:"Deck RRHH",lam:"Lámina 17",q:"Digitalizar capturas de tiempos muertos."}]},
+{id:10,cat:"C",top5:false,peso:3,hz:"2027–2028",comprador:"Ing. industrial / CI",nombre:"Estudio de tiempos con visión computacional",corto:"Visión IA",
+ desc:"Cámara + IA que extrae del video de la estación los tiempos de ciclo, la variabilidad entre operadores y los movimientos innecesarios.",
+ apunta:"Automatiza lo que hoy se hace con cronómetro. El proyecto estrella para concursos universitarios y publicaciones.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 17",q:"Estudio de tiempos y movimientos actualizado: redefinir estándares por hora, detectar flexiones, recorridos y micro-ineficiencias."}]},
+{id:11,cat:"C",top5:false,peso:2,hz:"2027–2028",comprador:"Mantenimiento",nombre:"Mantenimiento predictivo quirúrgico",corto:"Predictivo",
+ desc:"Sensores de vibración y corriente solo en las máquinas con fallas repetitivas identificadas, con alertas tempranas.",
+ apunta:"No compite con un MES corporativo: es la automatización quirúrgica que recomienda el deck — invertir donde cada hora ahorrada tiene impacto directo.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 18",q:"Disminuir las pérdidas crónicas: fallas repetitivas de máquinas."},
+       {doc:"Deck RRHH",lam:"Lámina 17",q:"Automatización focalizada: invertir en automatización quirúrgica ahí donde cada hora ahorrada tenga impacto directo."}]},
+{id:12,cat:"C",top5:false,peso:3,hz:"2027–2028",comprador:"Operaciones / CI",nombre:"Simulación y balanceo de líneas",corto:"Balanceo",
+ desc:"Modelo digital ligero de la línea para probar rebalanceos de estaciones antes de mover nada físico.",
+ apunta:"Ataca cuellos de botella y tiempos ociosos con la especialidad de mejora continua del socio industrial: él define este proyecto.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 17",q:"Balanceo de líneas: reacomodar estaciones para evitar cuellos de botella; minimizar tiempos ociosos entre estaciones."},
+       {doc:"Reporte INDEX",lam:"Lámina 21",q:"Líneas desbalanceadas crean estaciones cuello de botella mientras otras esperan. Re-balancear libera capacidad sin invertir."}]},
+{id:13,cat:"C",top5:false,peso:2,hz:"2027",comprador:"CI / Calidad",nombre:"Instrucciones de trabajo digitales (SOP)",corto:"SOP digital",
+ desc:"Instrucciones por estación en tablet con fotos y video, control de versiones y confirmación de lectura por operador.",
+ apunta:"Con menos horas, la variabilidad entre operadores cuesta más: estandarizar el método es capacidad gratis.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 18",q:"Estandarizar el trabajo: con menos horas la variabilidad es más costosa; asegurar que todos los operadores trabajan bajo el mismo método."}]},
+{id:14,cat:"C",top5:false,peso:1,hz:"2027",comprador:"CI / Calidad",nombre:"Auditorías digitales · 5S / LPA",corto:"Auditorías 5S",
+ desc:"Digitaliza las auditorías escalonadas de proceso y 5S que hoy se hacen en papel: hallazgos, responsables y seguimiento automático.",
+ apunta:"El pan de cada día del socio industrial en planta — él sabe exactamente qué duele de hacerlas en papel.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 16",q:"Reducir: retrasos en los CT, paros por cortos, pérdidas por arranque y cierre de turno. (Extensión: la disciplina de auditoría sostiene estas reducciones.)"}]},
+{id:15,cat:"C",top5:false,peso:2,hz:"2027",comprador:"Calidad",nombre:"Registro de calidad y scrap por turno",corto:"Scrap / calidad",
+ desc:"Captura digital de defectos y desperdicio por turno, línea y causa, con costo en pesos visible.",
+ apunta:"El retrabajo y el sobreproceso están en las mudas prioritarias. El scrap es ahorro directo medible: el argumento de venta más fácil de todo el catálogo.",
+ refs:[{doc:"Deck RRHH",lam:"Lámina 17",q:"Proyectos de reducción de desperdicios (mudas). Priorizar: esperas, movimientos innecesarios, retrabajos, sobreproceso, inventario excesivo."}]},
+{id:16,cat:"D",top5:true,peso:3,hz:"2026–2027",comprador:"RRHH / Capacitación",nombre:"Matriz de polivalencia viva (SaaS)",corto:"Polivalencia",
+ desc:"Habilidades por operador y estación, certificación cruzada con metas trimestrales y cobertura real de ausentismo.",
+ apunta:"Condición crítica #3 del reporte. Producto sencillo, suscripción accesible, comprador claro: la recurrencia del portafolio mientras maduran los grandes.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 23",q:"Matriz de habilidades por operador y estación; plan de certificación cruzada con metas trimestrales."},
+       {doc:"Reporte INDEX",lam:"Lámina 25",q:"Condición crítica: talento polivalente certificado — matriz de habilidades viva, cobertura real de ausentismo."}]},
+{id:17,cat:"D",top5:false,peso:2,hz:"2027",comprador:"RRHH",nombre:"Analítica de ausentismo y rotación",corto:"Ausentismo",
+ desc:"Con datos del checador y de la matriz de polivalencia, predice qué líneas tendrán huecos y sugiere coberturas.",
+ apunta:"Cierra el ciclo entre los módulos de personas y los de operación: cubrir vacancias sin recurrir a horas extra.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 23",q:"Flexibilidad real frente a ausentismo y picos de demanda; vacancias internas cubiertas sin recurrir a horas extra."}]},
+{id:18,cat:"D",top5:false,peso:3,hz:"2026–2027",comprador:"RRHH / Comunicación",nombre:"App de gestión del cambio",corto:"Gestión cambio",
+ desc:"Comunicados piramidales (dirección → mandos → piso), buzón de dudas con SLA de 48 h medido y encuestas de pulso por turno.",
+ apunta:"Si el cambio se percibe como pérdida, la productividad cae aunque el horario esté bien diseñado. Barata de construir; RRHH la compra directo.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 24",q:"Mensaje piramidal: dirección → mandos → piso. Espacios de dudas con respuestas en menos de 48 horas."},
+       {doc:"Reporte INDEX",lam:"Lámina 19",q:"Si el cambio se percibe como pérdida, la productividad cae aunque el horario esté bien."}]},
+{id:19,cat:"D",top5:false,peso:1,hz:"2027",comprador:"RRHH",nombre:"Portal del colaborador",corto:"Portal colaborador",
+ desc:"App para el operador: su horario, recibos, solicitudes de permiso y sus horas visibles con transparencia.",
+ apunta:"Reduce carga administrativa de RRHH y comparte base de datos con el registro de jornada y la app de cambio: tres productos, una plataforma.",
+ refs:[{doc:"Extensión",lam:"De láminas 12 (RH) y 24 (INDEX)",q:"Extensión natural del registro electrónico y del frente de comunicación: mismo dato, cara al colaborador."}]},
+{id:20,cat:"D",top5:true,peso:1,hz:"2026",comprador:"RRHH / Legal",nombre:"Asistente IA de la reforma laboral",corto:"Asistente IA",
+ desc:"Chatbot entrenado con la LFT reformada, el dictamen y las políticas internas: responde dudas de supervisores y RRHH al instante.",
+ apunta:"«¿Puedo pedirle 3 horas extra el jueves si ya trabajó 9?» — el prototipo más rápido de construir y el que más impacto genera en una presentación.",
+ refs:[{doc:"Deck RRHH",lam:"Deck completo",q:"Todo el deck es la base de conocimiento: artículos 58, 61, 66, 68, transitorios y criterios de cómputo que hoy generan dudas diarias en piso."}]},
+{id:21,cat:"E",top5:false,peso:3,hz:"2027–2028",comprador:"INDEX / parque industrial",nombre:"Plataforma logística del parque",corto:"Logística parque",
+ desc:"Coordinación de transporte, comedor y guardería entre plantas vecinas cuando las salidas se dispersen en seis horarios.",
+ apunta:"No se vende a una planta: se vende a INDEX o a la administración del parque. Candidato natural a apoyos públicos — beneficia a todo el ecosistema.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 12",q:"Seis horarios de salida abren la logística del clúster. El parque industrial debe coordinar lo que antes ocurría en automático."}]},
+{id:22,cat:"E",top5:true,peso:2,hz:"2027",comprador:"INDEX (el comité)",nombre:"Observatorio INDEX de la reforma",corto:"Observatorio",
+ desc:"Convierte la encuesta manual de mayo 2026 en plataforma permanente: benchmarking anónimo continuo entre las 64+ empresas, con dashboard para el comité de RRHH.",
+ apunta:"El proyecto que se le presenta a papá para su comité, no para las empresas. Convierte al contacto en cliente y posiciona al equipo en el centro del clúster.",
+ refs:[{doc:"Reporte INDEX",lam:"Láminas 7 y 11",q:"64 empresas encuestadas (corte 14 mayo 2026): un esfuerzo manual único que puede volverse infraestructura permanente del clúster."}]},
+{id:23,cat:"F",top5:false,peso:2,hz:"2027",comprador:"EHS / Operaciones",nombre:"Ergonomía para jornadas de 9.2 h",corto:"Ergonomía 9.2h",
+ desc:"Rediseño ergonómico de estaciones ante la nueva curva de fatiga diaria del modelo dominante 5×9.2.",
+ apunta:"Nadie del clúster está trabajando esto todavía. Servicio que un diseñador industrial del Politecnico di Milano firma con autoridad.",
+ refs:[{doc:"Reporte INDEX",lam:"Lámina 17",q:"Fatiga y riesgo de accidentes en turnos largos."},
+       {doc:"Reporte INDEX",lam:"Lámina 14",q:"Jornada bruta diaria de 9.2 horas — el modelo dominante alarga cada día de trabajo."}]},
+{id:24,cat:"F",top5:false,peso:1,hz:"2027–2028",comprador:"Operaciones",nombre:"Línea de hardware IoT propio",corto:"Hardware IoT",
+ desc:"Botoneras Andon, sensores y tableros con diseño de producto: Milán diseña, Wuhan prototipa, Chihuahua implementa.",
+ apunta:"Soporte físico de los proyectos 8, 9 y 11. La diferencia entre prototipo estudiantil y producto profesional es diseño — y eleva el precio de todo el portafolio.",
+ refs:[{doc:"Transversal",lam:"Soporta láminas 20 y 23 (INDEX)",q:"La capa física de los reportes digitales y tableros por turno que el reporte exige."}]}
+];
+
+/* ================= ESTADO APP ================= */
+let estados={}, activeCats=new Set(["A","B","C","D","E","F"]), flags={top5:false,peso3:false,marcados:false}, query="", paused=false, currentId=null;
+async function loadEstados(){ try{const r=await window.storage.get("constelacion-estados"); if(r&&r.value) estados=JSON.parse(r.value);}catch(e){} refresh(); }
+async function saveEstados(){ try{await window.storage.set("constelacion-estados",JSON.stringify(estados));}catch(e){} }
+function visible(p){
+  if(!activeCats.has(p.cat))return false;
+  if(flags.top5&&!p.top5)return false;
+  if(flags.peso3&&p.peso!==3)return false;
+  if(flags.marcados&&!estados[p.id])return false;
+  if(query&&!(p.nombre+" "+p.desc+" "+p.comprador).toLowerCase().includes(query))return false;
+  return true;
+}
+
+/* ================= THREE.JS ================= */
+const stage=document.getElementById("stage");
+const canvas=document.getElementById("c3d");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070D18);
+scene.fog=new THREE.FogExp2(0x070D18,0.0016);
+const camera=new THREE.PerspectiveCamera(50,1,0.1,2000);
+
+/* cámara orbital propia */
+let camR=210, camTheta=Math.PI*0.32, camPhi=1.02, autoSpin=true;
+function updateCam(){
+  camPhi=Math.max(0.18,Math.min(1.45,camPhi));
+  camR=Math.max(60,Math.min(480,camR));
+  camera.position.set(camR*Math.sin(camPhi)*Math.cos(camTheta), camR*Math.cos(camPhi), camR*Math.sin(camPhi)*Math.sin(camTheta));
+  camera.lookAt(0,0,0);
+}
+updateCam();
+
+/* luces */
+scene.add(new THREE.AmbientLight(0x8FA0BC,0.35));
+const sunLight=new THREE.PointLight(0xFFB347,2.2,900,1.6); scene.add(sunLight);
+
+/* estrellas */
+(function(){
+  const g=new THREE.BufferGeometry(); const n=1400; const pos=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ const r=600+Math.random()*500, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    pos[i*3]=r*Math.sin(ph)*Math.cos(th); pos[i*3+1]=r*Math.cos(ph); pos[i*3+2]=r*Math.sin(ph)*Math.sin(th); }
+  g.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xCFE0FF,size:1.4,sizeAttenuation:true,transparent:true,opacity:.7})));
+})();
+
+/* sol */
+function glowTexture(inner,outer){
+  const c=document.createElement("canvas"); c.width=c.height=256;
+  const ctx=c.getContext("2d");
+  const gr=ctx.createRadialGradient(128,128,0,128,128,128);
+  gr.addColorStop(0,inner); gr.addColorStop(0.35,outer); gr.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=gr; ctx.fillRect(0,0,256,256);
+  return new THREE.CanvasTexture(c);
+}
+const sun=new THREE.Mesh(new THREE.SphereGeometry(11,48,48),
+  new THREE.MeshBasicMaterial({color:0xFFC96B}));
+scene.add(sun);
+const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture("rgba(255,214,138,0.95)","rgba(242,84,45,0.35)"),blending:THREE.AdditiveBlending,depthWrite:false}));
+sunGlow.scale.set(70,70,1); scene.add(sunGlow);
+
+/* órbitas */
+const RADII=[34,52,72,92,112,132];
+Object.values(CATS).forEach(c=>{
+  const r=RADII[c.orbit], pts=[];
+  for(let i=0;i<=128;i++){const a=i/128*Math.PI*2;pts.push(new THREE.Vector3(r*Math.cos(a),0,r*Math.sin(a)));}
+  const line=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:new THREE.Color(c.color),transparent:true,opacity:0.28}));
+  scene.add(line);
+});
+
+/* planetas y asteroides de proyectos */
+const bodies=[];
+const SIZE={3:4.6,2:3.1,1:2.0};
+function asteroidGeo(r){
+  const g=new THREE.IcosahedronGeometry(r,1);
+  const pos=g.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const s=0.72+Math.random()*0.56;
+    pos.setXYZ(i,pos.getX(i)*s,pos.getY(i)*s,pos.getZ(i)*s);
+  }
+  g.computeVertexNormals(); return g;
+}
+const byCat={}; P.forEach(p=>{(byCat[p.cat]=byCat[p.cat]||[]).push(p);});
+Object.entries(byCat).forEach(([k,arr])=>{
+  const c=CATS[k], r=RADII[c.orbit], n=arr.length, off=Math.random()*Math.PI*2;
+  arr.forEach((p,i)=>{
+    const col=new THREE.Color(c.color);
+    let mesh;
+    if(p.peso===1){ // asteroide
+      mesh=new THREE.Mesh(asteroidGeo(SIZE[1]),
+        new THREE.MeshStandardMaterial({color:col.clone().lerp(new THREE.Color(0x7A828F),0.45),roughness:0.95,metalness:0.15,flatShading:true,transparent:true}));
+    }else{
+      mesh=new THREE.Mesh(new THREE.SphereGeometry(SIZE[p.peso],32,32),
+        new THREE.MeshStandardMaterial({color:col,roughness:0.55,metalness:0.1,emissive:col.clone().multiplyScalar(0.18),transparent:true}));
+    }
+    const group=new THREE.Group(); group.add(mesh);
+    if(p.top5){ // anillo dorado
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(SIZE[p.peso]*1.7,0.28,10,60),
+        new THREE.MeshBasicMaterial({color:0xFFD98A,transparent:true,opacity:0.9}));
+      ring.rotation.x=Math.PI/2.4; group.add(ring); group._ring=ring;
+    }
+    const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture("rgba(255,255,255,0.9)","rgba(255,255,255,0.15)"),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0}));
+    halo.scale.setScalar(SIZE[p.peso]*5); group.add(halo); group._halo=halo;
+    scene.add(group);
+    const incl=(Math.random()-0.5)*0.10;
+    bodies.push({p,group,mesh,ang:off+i*(Math.PI*2/n),speed:(0.05/(1+c.orbit*0.45)),r,incl,
+      spin:0.2+Math.random()*0.5});
+  });
+});
+
+/* cinturón de asteroides decorativo (ideas futuras) */
+(function(){
+  const N=340, geo=asteroidGeo(0.9),
+    mat=new THREE.MeshStandardMaterial({color:0x6E7A90,roughness:1,flatShading:true});
+  const inst=new THREE.InstancedMesh(geo,mat,N);
+  const dummy=new THREE.Object3D(); inst._items=[];
+  for(let i=0;i<N;i++){
+    const r=146+Math.random()*14, a=Math.random()*Math.PI*2, y=(Math.random()-0.5)*4, s=0.4+Math.random()*1.1;
+    inst._items.push({r,a,y,s,sp:0.010+Math.random()*0.012});
+  }
+  inst._dummy=dummy; scene.add(inst); window._belt=inst;
+})();
+
+/* ================= LABELS HTML ================= */
+const labelsDiv=document.getElementById("labels");
+const sunLabel=document.createElement("div"); sunLabel.id="sunlabel";
+const dias=Math.max(0,Math.ceil((new Date("2027-01-01")-new Date())/86400000));
+sunLabel.innerHTML=`<div class="t">REFORMA LABORAL</div><div class="d">${dias} días</div><div class="s">registro obligatorio · 1 ene 2027</div>`;
+labelsDiv.appendChild(sunLabel);
+bodies.forEach(b=>{
+  const el=document.createElement("div"); el.className="plabel";
+  el.innerHTML=`${b.p.top5?"⭐ ":""}${b.p.corto}<small>${b.p.hz}</small>`;
+  el.addEventListener("click",()=>openDrawer(b.p.id));
+  labelsDiv.appendChild(el); b.label=el;
+});
+const v3=new THREE.Vector3();
+function projectLabels(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  v3.set(0,14,0).project(camera);
+  sunLabel.style.left=((v3.x*.5+.5)*w)+"px"; sunLabel.style.top=((-v3.y*.5+.5)*h)+"px";
+  sunLabel.style.display=(v3.z<1)?"":"none";
+  bodies.forEach(b=>{
+    if(b._hidden){b.label.classList.add("hide");return;}
+    b.group.getWorldPosition(v3); v3.y+=SIZE[b.p.peso]+2.2; v3.project(camera);
+    if(v3.z>1){b.label.classList.add("hide");return;}
+    b.label.classList.remove("hide");
+    b.label.style.left=((v3.x*.5+.5)*w)+"px";
+    b.label.style.top=((-v3.y*.5+.5)*h)+"px";
+    const d=camera.position.distanceTo(b.group.position);
+    b.label.style.opacity=Math.max(0.25,Math.min(1,(330-d)/170));
+  });
+}
+
+/* ================= INTERACCIÓN 3D ================= */
+const ray=new THREE.Raycaster(), mouse=new THREE.Vector2();
+let dragging=false,moved=0,px=0,py=0,pinchD=0;
+canvas.addEventListener("pointerdown",e=>{dragging=true;moved=0;px=e.clientX;py=e.clientY;autoSpin=false;});
+window.addEventListener("pointermove",e=>{
+  if(dragging){
+    const dx=e.clientX-px,dy=e.clientY-py; px=e.clientX;py=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
+    camTheta+=dx*0.005; camPhi-=dy*0.004; updateCam();
+  }else{ hover(e); }
+});
+window.addEventListener("pointerup",e=>{
+  if(dragging&&moved<6) pick(e);
+  dragging=false;
+});
+canvas.addEventListener("wheel",e=>{e.preventDefault();camR*=(1+e.deltaY*0.001);updateCam();},{passive:false});
+canvas.addEventListener("touchmove",e=>{
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(pinchD) camR*=pinchD/d; pinchD=d; updateCam();
+  }
+},{passive:true});
+canvas.addEventListener("touchend",()=>{pinchD=0;});
+function ndc(e){const r=canvas.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;}
+function intersect(e){
+  ndc(e); ray.setFromCamera(mouse,camera);
+  const meshes=bodies.filter(b=>!b._hidden).map(b=>b.mesh);
+  const hits=ray.intersectObjects(meshes);
+  return hits.length?bodies.find(b=>b.mesh===hits[0].object):null;
+}
+let hovered=null;
+function hover(e){
+  const b=intersect(e);
+  if(hovered&&hovered!==b){hovered.mesh.scale.setScalar(1);}
+  hovered=b; canvas.style.cursor=b?"pointer":"grab";
+  if(b) b.mesh.scale.setScalar(1.35);
+}
+function pick(e){ const b=intersect(e); if(b) openDrawer(b.p.id); }
+
+/* ================= LOOP ================= */
+let lastT=performance.now();
+function animate(t){
+  const dt=Math.min(0.05,(t-lastT)/1000); lastT=t;
+  if(!paused){
+    bodies.forEach(b=>{
+      b.ang+=b.speed*dt*(currentId?0.15:1);
+      b.group.position.set(b.r*Math.cos(b.ang), b.r*Math.sin(b.ang*2)*b.incl*b.r*0.06, b.r*Math.sin(b.ang));
+      b.mesh.rotation.y+=b.spin*dt;
+      if(b.group._ring) b.group._ring.rotation.z+=dt*0.4;
+    });
+    const belt=window._belt;
+    if(belt){
+      belt._items.forEach((it,i)=>{
+        it.a+=it.sp*dt;
+        belt._dummy.position.set(it.r*Math.cos(it.a),it.y,it.r*Math.sin(it.a));
+        belt._dummy.rotation.set(it.a*2,it.a,0);
+        belt._dummy.scale.setScalar(it.s);
+        belt._dummy.updateMatrix();
+        belt.setMatrixAt(i,belt._dummy.matrix);
+      });
+      belt.instanceMatrix.needsUpdate=true;
+    }
+    if(autoSpin){ camTheta+=dt*0.02; updateCam(); }
+  }
+  sunGlow.material.opacity=0.85+Math.sin(t*0.0012)*0.15;
+  projectLabels();
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+}
+function resize(){
+  const w=stage.clientWidth,h=stage.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener("resize",resize);
+
+/* ================= REFRESH ================= */
+function statusColor(s){return s==="interesa"?0xF2B33D:s==="prioridad"?0x5BD6A0:s==="descartado"?0x5A6B88:null;}
+function refresh(){
+  let n=0;
+  bodies.forEach(b=>{
+    const v=visible(b.p); if(v)n++;
+    b._hidden=!v;
+    const st=estados[b.p.id];
+    const baseOp=v?(st==="descartado"?0.3:1):0.06;
+    b.mesh.material.opacity=baseOp;
+    if(b.group._ring) b.group._ring.material.opacity=v?0.9:0.05;
+    const col=statusColor(st);
+    if(col&&v){ b.group._halo.material.color.setHex(col); b.group._halo.material.opacity=0.55; }
+    else b.group._halo.material.opacity=0;
+  });
+  P.forEach(p=>{
+    const cd=document.getElementById("cd-"+p.id);
+    if(cd){cd.classList.toggle("hidden",!visible(p));cd.dataset.status=estados[p.id]||"";}
+  });
+  document.querySelectorAll(".catsec").forEach(s=>{
+    const any=[...s.querySelectorAll(".card")].some(c=>!c.classList.contains("hidden"));
+    s.style.display=any?"":"none";
+  });
+  document.getElementById("count").textContent=n+" / "+P.length+" proyectos";
+}
+
+/* ================= TABLERO ================= */
+function buildBoard(){
+  const b=document.getElementById("board"); b.innerHTML="";
+  Object.entries(CATS).forEach(([k,c])=>{
+    const sec=document.createElement("section"); sec.className="catsec";
+    sec.innerHTML=`<h2><span class="catdot" style="background:${c.color}"></span>${k} · ${c.name}</h2><div class="catdesc">${c.desc}</div><div class="grid"></div>`;
+    const grid=sec.querySelector(".grid");
+    P.filter(p=>p.cat===k).forEach(p=>{
+      const card=document.createElement("div");
+      card.className="card"; card.id="cd-"+p.id; card.style.setProperty("--cc",c.color);
+      card.innerHTML=`${p.top5?'<span class="star">⭐</span>':''}
+        <div class="peso">${[1,2,3].map(x=>`<i class="${x<=p.peso?'f':''}"></i>`).join("")}</div>
+        <h3>${p.nombre}</h3><p>${p.desc}</p>
+        <div class="meta"><span class="tag">${p.comprador}</span><span class="tag hz">${p.hz}</span><span class="tag">${p.refs.length} ref${p.refs.length>1?"s":""} · docs</span></div>`;
+      card.addEventListener("click",()=>openDrawer(p.id));
+      grid.appendChild(card);
+    });
+    b.appendChild(sec);
+  });
+}
+
+/* ================= DRAWER ================= */
+const drawer=document.getElementById("drawer"),overlay=document.getElementById("overlay");
+function openDrawer(id){
+  const p=P.find(x=>x.id===id); if(!p)return;
+  currentId=id;
+  const c=CATS[p.cat];
+  drawer.style.setProperty("--cc",c.color);
+  const chip=document.getElementById("dcat"); chip.textContent=p.cat+" · "+c.name; chip.style.background=c.color;
+  document.getElementById("dname").textContent=(p.top5?"⭐ ":"")+p.nombre;
+  document.getElementById("ddesc").textContent=p.desc;
+  document.getElementById("dapunta").textContent=p.apunta;
+  document.getElementById("dcomprador").textContent=p.comprador;
+  document.getElementById("dhz").textContent=p.hz;
+  const pesoTxt={3:"Cita textual en los documentos",2:"Referencia directa",1:"Extensión lógica (asteroide)"};
+  document.getElementById("dpeso").innerHTML=`<div class="dots">${[1,2,3].map(x=>`<i class="${x<=p.peso?'f':''}"></i>`).join("")}</div><span>${pesoTxt[p.peso]}</span>`;
+  document.getElementById("drefs").innerHTML=p.refs.map(r=>
+    `<div class="ref" style="--cc:${c.color}"><div class="src">${r.doc} — ${r.lam}</div><div class="q">“${r.q}”</div></div>`).join("");
+  updateStatusBtns();
+  drawer.classList.add("open");overlay.classList.add("open");
+}
+function closeDrawer(){drawer.classList.remove("open");overlay.classList.remove("open");currentId=null;}
+document.getElementById("dclose").addEventListener("click",closeDrawer);
+overlay.addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
+function updateStatusBtns(){document.querySelectorAll(".sbtn").forEach(b=>b.classList.toggle("on",estados[currentId]===b.dataset.s));}
+document.querySelectorAll(".sbtn").forEach(b=>{
+  b.addEventListener("click",()=>{
+    if(!currentId)return;
+    if(estados[currentId]===b.dataset.s)delete estados[currentId]; else estados[currentId]=b.dataset.s;
+    saveEstados();updateStatusBtns();refresh();
+  });
+});
+
+/* ================= CONTROLES UI ================= */
+document.querySelectorAll(".chip[data-cat]").forEach(ch=>ch.addEventListener("click",()=>{
+  const k=ch.dataset.cat; activeCats.has(k)?activeCats.delete(k):activeCats.add(k);
+  ch.classList.toggle("on");refresh();
+}));
+document.querySelectorAll(".chip[data-f]").forEach(ch=>ch.addEventListener("click",()=>{
+  flags[ch.dataset.f]=!flags[ch.dataset.f];ch.classList.toggle("on");refresh();
+}));
+document.getElementById("q").addEventListener("input",e=>{query=e.target.value.toLowerCase().trim();refresh();});
+const btnO=document.getElementById("btnOrbit"),btnB=document.getElementById("btnBoard");
+function setView(v){
+  const is3d=v==="orbit";
+  canvas.style.display=is3d?"block":"none";
+  labelsDiv.style.display=is3d?"block":"none";
+  document.getElementById("legend").style.display=is3d?"":"none";
+  document.getElementById("hint").style.display=is3d?"":"none";
+  document.getElementById("board").style.display=is3d?"none":"block";
+  btnO.classList.toggle("active",is3d);btnB.classList.toggle("active",!is3d);
+  if(is3d)resize();
+}
+btnO.addEventListener("click",()=>setView("orbit"));
+btnB.addEventListener("click",()=>setView("board"));
+const pauseBtn=document.getElementById("pauseBtn");
+pauseBtn.addEventListener("click",()=>{paused=!paused;pauseBtn.textContent=paused?"▶ Reanudar":"⏸ Pausar";});
+
+/* ================= INIT ================= */
+buildBoard(); resize(); refresh(); loadEstados();
+requestAnimationFrame(t=>{lastT=t;requestAnimationFrame(animate);});
+</script>
+</body>
+</html>
