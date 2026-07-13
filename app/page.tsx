@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, onSnapshot, orderBy, query, type DocumentData, type QueryDocumentSnapshot, type Timestamp } from "firebase/firestore";
-import { createProjectRecord, createTaskRecord, db, initializeAnalytics, updateTaskDescription, updateTaskStatus, uploadProjectDocument } from "@/lib/firebase";
+import { createProjectRecord, createTaskRecord, db, initializeAnalytics, updateProjectSteps, updateTaskDescription, updateTaskStatus, uploadProjectDocument } from "@/lib/firebase";
+
+type NextStep = {
+  id: string;
+  text: string;
+  done: boolean;
+};
 
 type Project = {
   id: string;
@@ -16,6 +22,7 @@ type Project = {
   description?: string;
   session2Alignment?: string;
   priority?: string;
+  nextSteps: NextStep[];
   updatedAt?: Timestamp;
 };
 
@@ -62,6 +69,13 @@ function toProject(doc: QueryDocumentSnapshot<DocumentData>): Project {
     description: data.description ? String(data.description) : undefined,
     session2Alignment: data.session2Alignment ? String(data.session2Alignment) : undefined,
     priority: data.priority ? String(data.priority) : undefined,
+    nextSteps: Array.isArray(data.nextSteps)
+      ? data.nextSteps.map((step: { id?: string; text?: string; done?: boolean }, index: number) => ({
+          id: step.id ?? String(index),
+          text: String(step.text ?? ""),
+          done: Boolean(step.done),
+        }))
+      : [],
     updatedAt: data.updatedAt,
   };
 }
@@ -114,6 +128,8 @@ export default function Home() {
   const [selected, setSelected] = useState<Project | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [taskDescription, setTaskDescription] = useState("");
+  const [newStepText, setNewStepText] = useState("");
+  const [savingSteps, setSavingSteps] = useState(false);
   const [todayLabel, setTodayLabel] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -196,6 +212,38 @@ export default function Home() {
     } finally { setSavingProject(false); }
   }
 
+  async function persistSteps(project: Project, steps: NextStep[]) {
+    setSavingSteps(true);
+    try {
+      await updateProjectSteps(project.id, steps);
+      setSelected({ ...project, nextSteps: steps });
+    } catch (error) {
+      console.error("Project steps update failed", error);
+      notify("No se pudo actualizar la ruta del proyecto.");
+    } finally {
+      setSavingSteps(false);
+    }
+  }
+
+  function addStep() {
+    if (!selected || !newStepText.trim()) return;
+    const step: NextStep = { id: crypto.randomUUID(), text: newStepText.trim(), done: false };
+    void persistSteps(selected, [...selected.nextSteps, step]);
+    setNewStepText("");
+  }
+
+  function toggleStep(stepId: string) {
+    if (!selected) return;
+    const steps = selected.nextSteps.map((step) => (step.id === stepId ? { ...step, done: !step.done } : step));
+    void persistSteps(selected, steps);
+  }
+
+  function removeStep(stepId: string) {
+    if (!selected) return;
+    const steps = selected.nextSteps.filter((step) => step.id !== stepId);
+    void persistSteps(selected, steps);
+  }
+
   async function saveTaskDescription() {
     if (!selectedTask) return;
     setSavingProject(true);
@@ -240,7 +288,7 @@ export default function Home() {
             ].map(([status, label]) => <div className="kanban-column" key={status}><header><span className={`column-dot ${status}`} />{label}<em>{tasks.filter((task) => task.status === status).length}</em></header><div className="task-stack">{tasks.filter((task) => task.status === status).map((task) => <article className="task-card clickable" role="button" tabIndex={0} key={task.id} onClick={() => { setSelectedTask(task); setTaskDescription(task.description); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedTask(task); setTaskDescription(task.description); } }}><div className="task-meta"><span className={`priority ${task.priority}`}>{task.priority === "high" ? "Alta" : task.priority === "low" ? "Baja" : "Media"}</span><span>Ver detalle ›</span></div><h3>{task.title}</h3><p>{task.description || "Sin descripción práctica"}</p><small>{task.projectName}</small><footer><i>{task.assignee.charAt(0)}</i><span>{task.dueDate || "Sin fecha"}</span></footer><select aria-label={`Estado de ${task.title}`} value={task.status} onClick={(event) => event.stopPropagation()} onChange={(event) => { event.stopPropagation(); void updateTaskStatus(task.id, event.target.value); }}><option value="backlog">Pendientes</option><option value="todo">Por hacer</option><option value="in_progress">En progreso</option><option value="review">En revisión</option><option value="done">Terminado</option></select></article>)}{!loading && tasks.filter((task) => task.status === status).length === 0 && <button className="add-task-card" onClick={() => { setNewTask({ ...newTask, status }); setTaskOpen(true); }}>＋ Agregar tarea</button>}</div></div>)}</div>
           </section> : active === "Proyectos" ? <section className="portfolio-view">
             <div className="portfolio-head"><div><h2>Cartera de proyectos</h2><p>Separa oportunidades en evaluación del trabajo que ya está en marcha.</p></div><button className="primary" onClick={() => setProjectOpen(true)}>＋ Nuevo proyecto</button></div>
-            <div className="portfolio-grid">{[["potential", "Proyectos potenciales"], ["active", "Proyectos activos"]].map(([status, label]) => <section className="portfolio-group panel" key={status}><header><div><span className={`portfolio-dot ${status}`} /><h3>{label}</h3></div><em>{projects.filter((project) => project.status === status).length}</em></header>{projects.filter((project) => project.status === status).map((project) => <button className="portfolio-card" key={project.id} onClick={() => setSelected(project)}><div className="portfolio-card-top"><i>{project.name.charAt(0)}</i><span className="status neutral">{project.risk}</span></div><h4>{project.name}</h4><p>{project.area}</p><footer><span><b>{initials(project.owner)}</b>{project.owner}</span><em>{tasks.filter((task) => task.projectId === project.id).length} tareas</em></footer></button>)}{!loading && projects.filter((project) => project.status === status).length === 0 && <div className="portfolio-empty">No hay proyectos en esta etapa.</div>}</section>)}</div>
+            <div className="portfolio-grid">{[["potential", "Proyectos potenciales"], ["active", "Proyectos activos"]].map(([status, label]) => <section className="portfolio-group panel" key={status}><header><div><span className={`portfolio-dot ${status}`} /><h3>{label}</h3></div><em>{projects.filter((project) => project.status === status).length}</em></header>{projects.filter((project) => project.status === status).map((project) => <button className="portfolio-card" key={project.id} onClick={() => setSelected(project)}><div className="portfolio-card-top"><i>{project.name.charAt(0)}</i><span className="status neutral">{project.risk}</span></div><h4>{project.name}</h4><p>{project.area}</p>{project.nextSteps.length > 0 && <div className="steps-progress"><i><em style={{ width: `${Math.round((project.nextSteps.filter((step) => step.done).length / project.nextSteps.length) * 100)}%` }} /></i><span>{project.nextSteps.filter((step) => step.done).length}/{project.nextSteps.length} pasos</span></div>}<footer><span><b>{initials(project.owner)}</b>{project.owner}</span><em>{tasks.filter((task) => task.projectId === project.id).length} tareas</em></footer></button>)}{!loading && projects.filter((project) => project.status === status).length === 0 && <div className="portfolio-empty">No hay proyectos en esta etapa.</div>}</section>)}</div>
           </section> : <>
 
           <section className={`readiness-card ${readiness === null ? "readiness-empty" : ""}`}>
@@ -277,7 +325,24 @@ export default function Home() {
         </div>
       </section>
 
-      {selected && <div className="scrim" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><aside className="drawer"><button className="close" onClick={() => setSelected(null)}>×</button><span className="status neutral">{selected.status === "active" ? "Activo" : "Potencial"}</span><h2>{selected.name}</h2><p className="muted">{selected.area}</p>{selected.description && <><h3>Propuesta</h3><p className="drawer-description">{selected.description}</p></>}<h3>Visión actualizada en sesión 2</h3><div className="assistant-note"><span>✦</span><p>{selected.session2Alignment || "Pendiente de definir alineación estratégica."}</p></div><h3>Contexto del proyecto</h3><dl><div><dt>Responsable inicial</dt><dd>{selected.owner}</dd></div><div><dt>Prioridad</dt><dd>{selected.priority || "Sin definir"}</dd></div><div><dt>Avance</dt><dd>{selected.progress}%</dd></div><div><dt>Última actualización</dt><dd>{formatDate(selected.updatedAt)}</dd></div></dl></aside></div>}
+      {selected && <div className="scrim" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><aside className="drawer"><button className="close" onClick={() => setSelected(null)}>×</button><span className="status neutral">{selected.status === "active" ? "Activo" : "Potencial"}</span><h2>{selected.name}</h2><p className="muted">{selected.area}</p>{selected.description && <><h3>Propuesta</h3><p className="drawer-description">{selected.description}</p></>}<h3>Visión actualizada en sesión 2</h3><div className="assistant-note"><span>✦</span><p>{selected.session2Alignment || "Pendiente de definir alineación estratégica."}</p></div>
+
+          <h3>Ruta a seguir</h3>
+          <p className="field-help">Los siguientes pasos concretos para avanzar este proyecto.</p>
+          <div className="steps-list">
+            {selected.nextSteps.map((step) => <div className={step.done ? "step-row done" : "step-row"} key={step.id}>
+              <button type="button" className="step-check" aria-label={step.done ? "Marcar como pendiente" : "Marcar como hecho"} onClick={() => toggleStep(step.id)}>{step.done ? "✓" : ""}</button>
+              <span>{step.text}</span>
+              <button type="button" className="step-remove" aria-label="Eliminar paso" onClick={() => removeStep(step.id)}>×</button>
+            </div>)}
+            {selected.nextSteps.length === 0 && <div className="steps-empty">Todavía no hay pasos definidos.</div>}
+          </div>
+          <form className="step-add" onSubmit={(event) => { event.preventDefault(); addStep(); }}>
+            <input placeholder="Agregar siguiente paso..." value={newStepText} onChange={(event) => setNewStepText(event.target.value)} disabled={savingSteps} />
+            <button type="submit" className="primary" disabled={savingSteps || !newStepText.trim()}>＋</button>
+          </form>
+
+          <h3>Contexto del proyecto</h3><dl><div><dt>Responsable inicial</dt><dd>{selected.owner}</dd></div><div><dt>Prioridad</dt><dd>{selected.priority || "Sin definir"}</dd></div><div><dt>Avance</dt><dd>{selected.progress}%</dd></div><div><dt>Última actualización</dt><dd>{formatDate(selected.updatedAt)}</dd></div></dl></aside></div>}
 
       {selectedTask && <div className="scrim" onMouseDown={(event) => event.target === event.currentTarget && setSelectedTask(null)}><aside className="drawer task-detail"><button className="close" onClick={() => setSelectedTask(null)}>×</button><span className={`priority ${selectedTask.priority}`}>{selectedTask.priority === "high" ? "Prioridad alta" : selectedTask.priority === "low" ? "Prioridad baja" : "Prioridad media"}</span><h2>{selectedTask.title}</h2><p className="muted">{selectedTask.projectName}</p><h3>Descripción práctica</h3><p className="field-help">Explica con palabras sencillas qué hay que hacer, qué se debe entregar y cuándo se considera terminada.</p><textarea className="task-description-editor" value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} placeholder="Ejemplo: Revisar el documento, resumir los requisitos en una página y compartirlos con Roberto para validación." /><button className="primary wide" disabled={savingProject} onClick={() => void saveTaskDescription()}>{savingProject ? "Guardando..." : "Guardar descripción"}</button><h3>Datos de la tarea</h3><dl><div><dt>Responsable</dt><dd>{selectedTask.assignee}</dd></div><div><dt>Estado</dt><dd>{selectedTask.status.replaceAll("_", " ")}</dd></div><div><dt>Fecha límite</dt><dd>{selectedTask.dueDate || "Sin fecha"}</dd></div></dl></aside></div>}
 
