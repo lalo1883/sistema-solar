@@ -84,3 +84,7 @@ export async function updateTaskStatus(taskId: string, status: string) {
 export async function updateTaskDescription(taskId: string, description: string) {
   await updateDoc(doc(db, "tasks", taskId), { description: description.trim(), updatedAt: serverTimestamp() });
 }
+
+export async function updateProjectSteps(projectId: string, steps: { id: string; text: string; done: boolean }[]) {
+  await updateDoc(doc(db, "projects", projectId), { nextSteps: steps, updatedAt: serverTimestamp() });
+}
